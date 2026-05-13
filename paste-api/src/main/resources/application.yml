@@ -1,0 +1,46 @@
+spring:
+    application:
+        name: paste-api
+
+    datasource:
+        url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/pastetext}
+        username: ${SPRING_DATASOURCE_USERNAME:pastetext}
+        password: ${SPRING_DATASOURCE_PASSWORD:pastetext}
+        driver-class-name: org.postgresql.Driver
+
+    jpa:
+        hibernate:
+            ddl-auto: validate
+        show-sql: false
+        properties:
+            hibernate:
+                format_sql: true
+                default_schema: public
+
+    flyway:
+        enabled: true
+        locations: classpath:db/migration
+
+    kafka:
+        bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+        producer:
+            key-serializer: org.apache.kafka.common.serialization.StringSerializer
+            value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+server:
+    port: 8080
+
+jwt:
+    secret: ${JWT_SECRET:supersecretkey_change_in_prod_32chars_min}
+    expiration-ms: 86400000   # 24h
+
+springdoc:
+    api-docs:
+        path: /v3/api-docs
+    swagger-ui:
+        path: /swagger-ui.html
+
+logging:
+    level:
+        com.pastebin: DEBUG
+        org.springframework.security: INFO

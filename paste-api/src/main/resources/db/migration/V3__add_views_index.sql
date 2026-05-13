@@ -1,0 +1,1 @@
+CREATE INDEX idx_pastes_views ON pastes(views DESC);
