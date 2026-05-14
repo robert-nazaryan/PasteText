@@ -1,0 +1,19 @@
+package com.example.pasteapi.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class PasteEventDto {
+    private String        pasteId;
+    private String        shortLink;
+    private LocalDateTime expiresAt;
+    private String        eventType;
+}
