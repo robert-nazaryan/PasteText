@@ -4,7 +4,7 @@ const API = '/api/v1';
 
 export interface AuthData {
   accessToken: string;
-  username: string;
+  email: string;
   role: string;
 }
 
@@ -17,7 +17,7 @@ interface BackendPaste {
   passwordProtected: boolean;
   tags: string[];
   views: number;
-  authorUsername: string;
+  authorEmail: string;
   expiresAt: string | null;
   createdAt: string;
 }
@@ -56,7 +56,7 @@ function mapPaste(bp: BackendPaste): Paste {
     id: bp.id,
     slug: bp.shortLink,
     title: bp.title || 'Untitled paste',
-    author: bp.authorUsername,
+    author: bp.authorEmail,
     role: 'USER',
     language: 'auto',
     tags: bp.tags ?? [],
@@ -80,19 +80,19 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return res.json();
 }
 
-export async function login(username: string, password: string): Promise<AuthData> {
+export async function login(email: string, password: string): Promise<AuthData> {
   return apiFetch<AuthData>('/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ email, password }),
   });
 }
 
-export async function register(username: string, email: string, password: string): Promise<AuthData> {
+export async function register(email: string, password: string): Promise<AuthData> {
   return apiFetch<AuthData>('/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, email, password }),
+    body: JSON.stringify({ email, password }),
   });
 }
 

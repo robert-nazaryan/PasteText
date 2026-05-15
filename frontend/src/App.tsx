@@ -1,14 +1,14 @@
-import { FormEvent, Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link, Route, Routes } from 'react-router-dom';
 import './App.css';
 import 'highlight.js/styles/github.css';
 import CreatePasteModal from './components/CreatePasteModal';
 import Hero from './components/Hero';
 import PasteCard from './components/PasteCard';
+import PastePage from './components/PastePage';
 import SearchBar from './components/SearchBar';
-import { AuthData, createPaste, deletePaste, fetchPastes, getPasteBySlug, login, register } from './api';
+import { AuthData, createPaste, fetchPastes, login, register } from './api';
 import { CreatePasteFormValues, Paste, PasteLanguage, SortOption } from './types';
-
-const PasteDetail = lazy(() => import('./components/PasteDetail'));
 
 const initialFormValues: CreatePasteFormValues = {
   title: '',
@@ -22,8 +22,16 @@ const initialFormValues: CreatePasteFormValues = {
 };
 
 function App() {
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('auth_token'));
+  const [authEmail, setAuthEmail] = useState<string | null>(() => localStorage.getItem('auth_email'));
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [loginMode, setLoginMode] = useState<'login' | 'register'>('login');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
+
   const [pastes, setPastes] = useState<Paste[]>([]);
-  const [selectedPasteId, setSelectedPasteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<PasteLanguage | 'all'>('all');
   const [selectedTag, setSelectedTag] = useState('');
@@ -31,26 +39,14 @@ function App() {
   const [sortOption, setSortOption] = useState<SortOption>('newest');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoadingResults, setIsLoadingResults] = useState(true);
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createValues, setCreateValues] = useState<CreatePasteFormValues>(initialFormValues);
   const [createError, setCreateError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [toastMessage, setToastMessage] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [unlockedPasteIds, setUnlockedPasteIds] = useState<string[]>([]);
 
-  // Auth state
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('auth_token'));
-  const [authUsername, setAuthUsername] = useState<string | null>(() => localStorage.getItem('auth_username'));
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [loginMode, setLoginMode] = useState<'login' | 'register'>('login');
-  const [loginUsername, setLoginUsername] = useState('');
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
-
-  // Load pastes from backend whenever auth changes
   useEffect(() => {
     setIsLoadingResults(true);
     fetchPastes(token)
@@ -66,66 +62,45 @@ function App() {
   }, [toastMessage]);
 
   const authors = useMemo(
-    () => Array.from(new Set(pastes.map((paste) => paste.author))).sort(),
+    () => Array.from(new Set(pastes.map((p) => p.author))).sort(),
     [pastes]
   );
 
   const tags = useMemo(
-    () => Array.from(new Set(pastes.flatMap((paste) => paste.tags))).sort(),
+    () => Array.from(new Set(pastes.flatMap((p) => p.tags))).sort(),
     [pastes]
-  );
-
-  const accessiblePastes = useMemo(
-    () => pastes.filter((paste) => paste.visibility === 'public' || paste.author === authUsername),
-    [pastes, authUsername]
   );
 
   const filteredPastes = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-
-    const visiblePastes = accessiblePastes.filter((paste) => {
+    const visible = pastes.filter((p) => {
+      const accessible = p.visibility === 'public' || p.author === authEmail;
       const matchesQuery =
         !query ||
-        paste.title.toLowerCase().includes(query) ||
-        paste.tags.some((tag) => tag.toLowerCase().includes(query)) ||
-        paste.content.toLowerCase().includes(query);
-      const matchesLanguage = selectedLanguage === 'all' || paste.language === selectedLanguage;
-      const matchesTag = !selectedTag || paste.tags.includes(selectedTag);
-      const matchesAuthor = !selectedAuthor || paste.author === selectedAuthor;
-
-      return matchesQuery && matchesLanguage && matchesTag && matchesAuthor;
+        p.title.toLowerCase().includes(query) ||
+        p.tags.some((t) => t.toLowerCase().includes(query)) ||
+        p.content.toLowerCase().includes(query);
+      const matchesLanguage = selectedLanguage === 'all' || p.language === selectedLanguage;
+      const matchesTag = !selectedTag || p.tags.includes(selectedTag);
+      const matchesAuthor = !selectedAuthor || p.author === selectedAuthor;
+      return accessible && matchesQuery && matchesLanguage && matchesTag && matchesAuthor;
     });
 
-    const sortedPastes = [...visiblePastes];
-    sortedPastes.sort((first, second) => {
-      if (sortOption === 'most-viewed') return second.views - first.views;
-      const firstTime = new Date(first.createdAt).getTime();
-      const secondTime = new Date(second.createdAt).getTime();
-      return sortOption === 'oldest' ? firstTime - secondTime : secondTime - firstTime;
+    return [...visible].sort((a, b) => {
+      if (sortOption === 'most-viewed') return b.views - a.views;
+      const at = new Date(a.createdAt).getTime();
+      const bt = new Date(b.createdAt).getTime();
+      return sortOption === 'oldest' ? at - bt : bt - at;
     });
+  }, [pastes, authEmail, searchQuery, selectedLanguage, selectedTag, selectedAuthor, sortOption]);
 
-    return sortedPastes;
-  }, [accessiblePastes, searchQuery, selectedLanguage, selectedTag, selectedAuthor, sortOption]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredPastes.length / 6));
+  const totalPages = Math.max(1, Math.ceil(filteredPastes.length / 9));
   const paginatedPastes = useMemo(() => {
-    const startIndex = (currentPage - 1) * 6;
-    return filteredPastes.slice(startIndex, startIndex + 6);
+    const start = (currentPage - 1) * 9;
+    return filteredPastes.slice(start, start + 9);
   }, [currentPage, filteredPastes]);
 
-  const selectedPaste = useMemo(
-    () => pastes.find((paste) => paste.id === selectedPasteId) ?? null,
-    [pastes, selectedPasteId]
-  );
-
-  const canRevealProtectedPaste =
-    !selectedPaste?.requiresPassword ||
-    (selectedPaste ? unlockedPasteIds.includes(selectedPaste.id) : false);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedLanguage, selectedTag, selectedAuthor, sortOption]);
-
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, selectedLanguage, selectedTag, selectedAuthor, sortOption]);
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
@@ -141,32 +116,18 @@ function App() {
     setIsCreateOpen(true);
   }
 
-  function closeCreateModal() {
-    setIsCreateOpen(false);
-    setCreateError('');
-  }
-
   async function handleCreateSubmit() {
-    if (!createValues.content.trim()) {
-      setCreateError('Paste content is required');
-      return;
-    }
+    if (!createValues.content.trim()) { setCreateError('Paste content is required'); return; }
     if (createValues.password && createValues.password.length < 12) {
       setCreateError('Password must be at least 12 characters');
       return;
     }
-    if (!token) {
-      setCreateError('You must be logged in to create a paste');
-      return;
-    }
-
+    if (!token) { setCreateError('You must be logged in to create a paste'); return; }
     setCreateError('');
     setIsSubmitting(true);
-
     try {
       const newPaste = await createPaste(createValues, token);
-      setPastes((current) => [newPaste, ...current]);
-      setSelectedPasteId(newPaste.id);
+      setPastes((prev) => [newPaste, ...prev]);
       setIsCreateOpen(false);
       setCreateValues(initialFormValues);
       setToastMessage('Paste created');
@@ -177,117 +138,31 @@ function App() {
     }
   }
 
-  async function handleOpenPaste(pasteId: string) {
-    const nextPaste = pastes.find((paste) => paste.id === pasteId);
-    if (!nextPaste) return;
-
-    const canAccess = nextPaste.visibility === 'public' || nextPaste.author === authUsername;
-    if (!canAccess) {
-      setToastMessage('403 Forbidden');
-      return;
-    }
-
-    setPasswordError('');
-    setSelectedPasteId(nextPaste.id);
-
-    // Password-protected pastes show the unlock form; content fetched on unlock
-    if (nextPaste.requiresPassword) return;
-
-    // Fetch full content (list endpoint returns previews without content)
-    try {
-      const full = await getPasteBySlug(nextPaste.slug);
-      setPastes((current) =>
-        current.map((p) =>
-          p.id === pasteId ? { ...p, content: full.content, views: full.views } : p
-        )
-      );
-    } catch {
-      // non-blocking — detail panel will show empty content gracefully
-    }
-  }
-
-  async function handleUnlock(password: string) {
-    if (!selectedPaste) return;
-
-    try {
-      const unlockedPaste = await getPasteBySlug(selectedPaste.slug, password);
-      setPastes((current) =>
-        current.map((p) =>
-          p.id === selectedPaste.id ? { ...p, content: unlockedPaste.content } : p
-        )
-      );
-      setUnlockedPasteIds((current) => [...current, selectedPaste.id]);
-      setPasswordError('');
-      setToastMessage('Access granted');
-    } catch {
-      setPasswordError('Incorrect password');
-    }
-  }
-
-  async function handleCopyUrl() {
-    if (!selectedPaste) return;
-    await navigator.clipboard.writeText(`${window.location.origin}/p/${selectedPaste.slug}`);
-    setToastMessage('Copied to clipboard');
-  }
-
-  async function handleCopyContent() {
-    if (!selectedPaste) return;
-    await navigator.clipboard.writeText(selectedPaste.content);
-    setToastMessage('Copied to clipboard');
-  }
-
-  async function handleDeletePaste() {
-    if (!selectedPaste || !token) return;
-
-    try {
-      await deletePaste(selectedPaste.id, token);
-      setPastes((current) => current.filter((p) => p.id !== selectedPaste.id));
-      setSelectedPasteId(null);
-      setToastMessage('Paste deleted');
-    } catch {
-      setToastMessage('Failed to delete paste');
-    }
-  }
-
-  function goToPreviousPage() {
-    setCurrentPage((page) => Math.max(1, page - 1));
-  }
-
-  function goToNextPage() {
-    setCurrentPage((page) => Math.min(totalPages, page + 1));
-  }
-
   function handleAuthSuccess(data: AuthData) {
     localStorage.setItem('auth_token', data.accessToken);
-    localStorage.setItem('auth_username', data.username);
+    localStorage.setItem('auth_email', data.email);
     setToken(data.accessToken);
-    setAuthUsername(data.username);
+    setAuthEmail(data.email);
     setIsLoginOpen(false);
-    setLoginUsername('');
     setLoginEmail('');
     setLoginPassword('');
     setLoginError('');
-    setToastMessage(`Welcome, ${data.username}`);
+    setToastMessage(`Welcome, ${data.email}`);
   }
 
   async function handleLoginSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!loginUsername.trim() || !loginPassword.trim()) {
-      setLoginError('Username and password are required');
+    if (!loginEmail.trim() || !loginPassword.trim()) {
+      setLoginError('Email and password are required');
       return;
     }
     setIsLoginSubmitting(true);
     setLoginError('');
     try {
       if (loginMode === 'login') {
-        handleAuthSuccess(await login(loginUsername.trim(), loginPassword));
+        handleAuthSuccess(await login(loginEmail.trim(), loginPassword));
       } else {
-        if (!loginEmail.trim()) {
-          setLoginError('Email is required');
-          setIsLoginSubmitting(false);
-          return;
-        }
-        handleAuthSuccess(await register(loginUsername.trim(), loginEmail.trim(), loginPassword));
+        handleAuthSuccess(await register(loginEmail.trim(), loginPassword));
       }
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : 'Authentication failed');
@@ -298,114 +173,104 @@ function App() {
 
   function handleLogout() {
     localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_username');
+    localStorage.removeItem('auth_email');
     setToken(null);
-    setAuthUsername(null);
+    setAuthEmail(null);
     setPastes([]);
-    setSelectedPasteId(null);
     setToastMessage('Logged out');
   }
 
+  function switchMode(mode: 'login' | 'register') {
+    setLoginMode(mode);
+    setLoginError('');
+  }
+
+  const homeContent = (
+    <main className="app-layout">
+      <Hero onCreatePaste={openCreateModal} />
+
+      <SearchBar
+        searchQuery={searchQuery}
+        selectedLanguage={selectedLanguage}
+        selectedTag={selectedTag}
+        selectedAuthor={selectedAuthor}
+        sortOption={sortOption}
+        authors={authors}
+        tags={tags}
+        onSearchChange={setSearchQuery}
+        onLanguageChange={setSelectedLanguage}
+        onTagChange={setSelectedTag}
+        onAuthorChange={setSelectedAuthor}
+        onSortChange={setSortOption}
+      />
+
+      <div className="results-section">
+        <div className="results-header">
+          <p className="muted">{filteredPastes.length} paste{filteredPastes.length !== 1 ? 's' : ''}</p>
+          <button className="secondary-button" type="button" onClick={openCreateModal}>
+            New paste
+          </button>
+        </div>
+
+        {isLoadingResults && (
+          <div className="skeleton-grid" aria-label="Loading pastes">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="skeleton-card" aria-hidden="true" />
+            ))}
+          </div>
+        )}
+
+        {!isLoadingResults && !paginatedPastes.length && (
+          <section className="panel empty-state">
+            <h2>No pastes found</h2>
+            <p className="muted">Adjust your filters or create a new paste.</p>
+            <button className="primary-button" type="button" onClick={openCreateModal}>
+              Create paste
+            </button>
+          </section>
+        )}
+
+        {!isLoadingResults && paginatedPastes.length > 0 && (
+          <div className="results-grid">
+            {paginatedPastes.map((paste) => (
+              <PasteCard key={paste.id} paste={paste} />
+            ))}
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <nav className="pagination" aria-label="Pagination">
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+            <span className="muted">Page {currentPage} of {totalPages}</span>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </button>
+          </nav>
+        )}
+      </div>
+    </main>
+  );
+
   return (
     <div className="app-shell">
-      <main className="app-layout">
-        <Hero onCreatePaste={openCreateModal} />
-
-        <SearchBar
-          searchQuery={searchQuery}
-          selectedLanguage={selectedLanguage}
-          selectedTag={selectedTag}
-          selectedAuthor={selectedAuthor}
-          sortOption={sortOption}
-          authors={authors}
-          tags={tags}
-          onSearchChange={setSearchQuery}
-          onLanguageChange={setSelectedLanguage}
-          onTagChange={setSelectedTag}
-          onAuthorChange={setSelectedAuthor}
-          onSortChange={setSortOption}
-        />
-
-        <section className="content-grid">
-          <div className="results-column">
-            <div className="results-header">
-              <p className="muted">{filteredPastes.length} matching pastes</p>
-              <button className="secondary-button" type="button" onClick={openCreateModal}>
-                Create
-              </button>
-            </div>
-
-            {isLoadingResults ? (
-              <div className="skeleton-grid" aria-label="Loading pastes">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div key={index} className="skeleton-card" aria-hidden="true" />
-                ))}
-              </div>
-            ) : null}
-
-            {!isLoadingResults && !paginatedPastes.length ? (
-              <section className="panel empty-state">
-                <h2>No pastes found</h2>
-                <p className="muted">Adjust filters or create a new paste.</p>
-                <button className="primary-button" type="button" onClick={openCreateModal}>
-                  Create
-                </button>
-              </section>
-            ) : null}
-
-            {!isLoadingResults && paginatedPastes.length ? (
-              <div className="results-grid">
-                {paginatedPastes.map((paste) => (
-                  <PasteCard
-                    key={paste.id}
-                    paste={paste}
-                    isActive={paste.id === selectedPasteId}
-                    onOpen={handleOpenPaste}
-                  />
-                ))}
-              </div>
-            ) : null}
-
-            <nav className="pagination" aria-label="Pagination">
-              <button className="secondary-button" type="button" onClick={goToPreviousPage} disabled={currentPage === 1}>
-                Previous
-              </button>
-              <span>Page {currentPage} of {totalPages}</span>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={goToNextPage}
-                disabled={currentPage === totalPages}
-              >
-                Next
-              </button>
-            </nav>
-          </div>
-
-          <Suspense fallback={<aside className="panel detail-panel">Loading paste...</aside>}>
-            <PasteDetail
-              paste={selectedPaste}
-              passwordError={passwordError}
-              canRevealProtectedPaste={canRevealProtectedPaste}
-              onUnlock={handleUnlock}
-              onCopyUrl={handleCopyUrl}
-              onCopyContent={handleCopyContent}
-              onDelete={handleDeletePaste}
-            />
-          </Suspense>
-        </section>
-      </main>
-
-      <footer className="footer">
-        <div>
-          <p>robertnazaryan00@gmail.com</p>
-          <p>+374777777</p>
-          <p>Kilovakan</p>
-        </div>
-        <div className="footer-links">
-          {authUsername ? (
+      <nav className="navbar">
+        <Link to="/" className="nav-brand">PasteText</Link>
+        <div className="nav-actions">
+          {authEmail ? (
             <>
-              <span className="muted">{authUsername}</span>
+              <span className="muted nav-user">{authEmail}</span>
               <button className="secondary-button" type="button" onClick={handleLogout}>
                 Logout
               </button>
@@ -414,69 +279,86 @@ function App() {
             <button
               className="secondary-button"
               type="button"
-              onClick={() => { setIsLoginOpen(true); setLoginMode('login'); }}
+              onClick={() => { setIsLoginOpen(true); switchMode('login'); }}
             >
               Login / Register
             </button>
           )}
         </div>
-      </footer>
+      </nav>
+
+      <Routes>
+        <Route path="/" element={homeContent} />
+        <Route
+          path="/p/:slug"
+          element={
+            <PastePage
+              token={token}
+              authEmail={authEmail}
+              onToast={setToastMessage}
+            />
+          }
+        />
+      </Routes>
 
       <CreatePasteModal
         isOpen={isCreateOpen}
         values={createValues}
         errorMessage={createError}
         isSubmitting={isSubmitting}
-        onClose={closeCreateModal}
+        onClose={() => { setIsCreateOpen(false); setCreateError(''); }}
         onSubmit={handleCreateSubmit}
         onChange={setCreateValues}
       />
 
-      {isLoginOpen ? (
+      {isLoginOpen && (
         <div className="modal-backdrop" role="presentation" onClick={() => setIsLoginOpen(false)}>
           <section
-            className="modal"
+            className="modal auth-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="login-title"
+            aria-labelledby="auth-title"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
               <div>
                 <p className="section-label">{loginMode === 'login' ? 'Sign in' : 'Create account'}</p>
-                <h2 id="login-title">{loginMode === 'login' ? 'Welcome back' : 'Join PasteText'}</h2>
+                <h2 id="auth-title">{loginMode === 'login' ? 'Welcome back' : 'Join PasteText'}</h2>
               </div>
               <button className="icon-button" type="button" aria-label="Close" onClick={() => setIsLoginOpen(false)}>
-                Close
+                ✕
               </button>
             </div>
 
-            <form className="create-form" onSubmit={handleLoginSubmit}>
-              <label className="field field-full">
-                <span>Username</span>
+            <button
+              className="google-button"
+              type="button"
+              onClick={() => setLoginError('Google sign-in is not yet configured')}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+              </svg>
+              Continue with Google
+            </button>
+
+            <div className="auth-divider"><span>or</span></div>
+
+            <form className="auth-form" onSubmit={handleLoginSubmit}>
+              <label className="field">
+                <span>Email</span>
                 <input
-                  type="text"
-                  value={loginUsername}
-                  onChange={(e) => setLoginUsername(e.target.value)}
-                  placeholder="your_username"
-                  autoComplete="username"
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="email"
                 />
               </label>
 
-              {loginMode === 'register' ? (
-                <label className="field field-full">
-                  <span>Email</span>
-                  <input
-                    type="email"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    autoComplete="email"
-                  />
-                </label>
-              ) : null}
-
-              <label className="field field-full">
+              <label className="field">
                 <span>Password</span>
                 <input
                   type="password"
@@ -487,29 +369,31 @@ function App() {
                 />
               </label>
 
-              {loginError ? (
-                <p className="error-text field-full" aria-live="polite">{loginError}</p>
-              ) : null}
+              {loginError && (
+                <p className="error-text" aria-live="polite">{loginError}</p>
+              )}
 
-              <div className="modal-actions field-full">
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => { setLoginMode(loginMode === 'login' ? 'register' : 'login'); setLoginError(''); }}
-                >
-                  {loginMode === 'login' ? 'Create account' : 'Sign in instead'}
-                </button>
-                <button className="primary-button" type="submit" disabled={isLoginSubmitting}>
-                  {isLoginSubmitting ? 'Please wait...' : loginMode === 'login' ? 'Sign in' : 'Register'}
-                </button>
-              </div>
+              <button className="primary-button" type="submit" disabled={isLoginSubmitting}>
+                {isLoginSubmitting ? 'Please wait...' : loginMode === 'login' ? 'Sign in' : 'Create account'}
+              </button>
             </form>
+
+            <p className="auth-switch">
+              {loginMode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+              <button
+                className="link-button"
+                type="button"
+                onClick={() => switchMode(loginMode === 'login' ? 'register' : 'login')}
+              >
+                {loginMode === 'login' ? 'Sign up' : 'Sign in'}
+              </button>
+            </p>
           </section>
         </div>
-      ) : null}
+      )}
 
       <div className="toast-region" aria-live="polite">
-        {toastMessage ? <div className="toast">{toastMessage}</div> : null}
+        {toastMessage && <div className="toast">{toastMessage}</div>}
       </div>
     </div>
   );

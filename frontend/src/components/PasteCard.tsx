@@ -1,25 +1,15 @@
+import { Link } from 'react-router-dom';
 import { Paste } from '../types';
 import { formatDate, formatViews } from '../utils/pastes';
 
 interface PasteCardProps {
   paste: Paste;
-  isActive: boolean;
-  onOpen: (pasteId: string) => void;
 }
 
-function PasteCard({ paste, isActive, onOpen }: PasteCardProps) {
-  function handleOpen() {
-    onOpen(paste.id);
-  }
-
+function PasteCard({ paste }: PasteCardProps) {
   return (
     <article className="paste-card">
-      <button
-        className={`paste-card-button${isActive ? ' is-active' : ''}`}
-        type="button"
-        onClick={handleOpen}
-        aria-pressed={isActive}
-      >
+      <Link to={`/p/${paste.slug}`} className="paste-card-button" aria-label={paste.title}>
         <div className="paste-card-top">
           <div>
             <h3>{paste.title}</h3>
@@ -36,20 +26,19 @@ function PasteCard({ paste, isActive, onOpen }: PasteCardProps) {
 
         <div className="paste-card-meta">
           <span>{formatViews(paste.views)} views</span>
-          <span>{paste.role}</span>
           <span>{paste.expiresIn}</span>
         </div>
 
-        <div className="tag-row" aria-label="Paste tags">
-          {paste.tags.map((tag) => (
-            <span key={tag} className="tag-chip">
-              {tag}
-            </span>
-          ))}
-        </div>
-
-        {paste.syncStatus === 'syncing' ? <p className="sync-text">Syncing with server</p> : null}
-      </button>
+        {paste.tags.length > 0 && (
+          <div className="tag-row" aria-label="Paste tags">
+            {paste.tags.map((tag) => (
+              <span key={tag} className="tag-chip">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </Link>
     </article>
   );
 }
