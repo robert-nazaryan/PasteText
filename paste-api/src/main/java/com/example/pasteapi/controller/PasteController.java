@@ -72,10 +72,10 @@ public class PasteController {
             @AuthenticationPrincipal UserDetails user) {
 
         boolean authenticated = user != null;
-        String  username      = authenticated ? user.getUsername() : null;
+        String  currentEmail  = authenticated ? user.getUsername() : null;
 
         return ResponseEntity.ok(
-                pasteService.search(filter, page, size, authenticated, username)
+                pasteService.search(filter, page, size, authenticated, currentEmail)
         );
     }
 }

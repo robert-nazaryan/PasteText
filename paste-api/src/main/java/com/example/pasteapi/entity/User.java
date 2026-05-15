@@ -26,9 +26,6 @@ public class User implements UserDetails {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, unique = true, length = 50)
-    private String username;
-
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
@@ -48,8 +45,14 @@ public class User implements UserDetails {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
-    @Override public boolean isAccountNonExpired()  { return true; }
-    @Override public boolean isAccountNonLocked()   { return true; }
+    /** Spring Security principal — email is the unique identifier. */
+    @Override
+    public String getUsername() {
+        return this.email;
+    }
+
+    @Override public boolean isAccountNonExpired()     { return true; }
+    @Override public boolean isAccountNonLocked()      { return true; }
     @Override public boolean isCredentialsNonExpired() { return true; }
-    @Override public boolean isEnabled()            { return true; }
+    @Override public boolean isEnabled()               { return true; }
 }

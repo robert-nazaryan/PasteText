@@ -20,7 +20,7 @@ public interface AdminMapper {
     }
 
     @Mapping(target = "passwordProtected", expression = "java(paste.hasPassword())")
-    @Mapping(target = "authorUsername", expression = "java(paste.getAuthor() != null ? paste.getAuthor().getUsername() : null)")
+    @Mapping(target = "authorEmail", expression = "java(paste.getAuthor() != null ? paste.getAuthor().getEmail() : null)")
     @Mapping(target = "category", expression = "java(paste.getCategory() != null ? paste.getCategory().getName() : null)")
     @Mapping(target = "tags", expression = "java(paste.getTags().stream().map(com.example.pasteapi.entity.Tag::getName).collect(java.util.stream.Collectors.toSet()))")
     AdminPasteResponse toPasteResponse(Paste paste);

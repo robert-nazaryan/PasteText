@@ -50,8 +50,8 @@ public class PasteService {
     private final PasteMapper pasteMapper;
 
     @Transactional
-    public PasteResponse create(PasteCreateRequest req, String username) {
-        User author = userRepository.findByUsername(username)
+    public PasteResponse create(PasteCreateRequest req, String currentUserEmail) {
+        User author = userRepository.findByEmail(currentUserEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Paste paste = buildPaste(req, author);
@@ -84,11 +84,11 @@ public class PasteService {
     }
 
     @Transactional
-    public PasteResponse update(UUID id, PasteCreateRequest req, String username) {
+    public PasteResponse update(UUID id, PasteCreateRequest req, String currentUserEmail) {
         Paste paste = pasteRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Paste not found"));
 
-        if (!paste.getAuthor().getUsername().equals(username)) {
+        if (!paste.getAuthor().getUsername().equals(currentUserEmail)) {
             throw new AccessDeniedException("Not your paste");
         }
 
@@ -98,11 +98,11 @@ public class PasteService {
     }
 
     @Transactional
-    public void delete(UUID id, String username, String role) {
+    public void delete(UUID id, String currentUserEmail, String role) {
         Paste paste = pasteRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Paste not found"));
 
-        boolean isOwner = paste.getAuthor().getUsername().equals(username);
+        boolean isOwner = paste.getAuthor().getUsername().equals(currentUserEmail);
         boolean isAdmin = "ADMIN".equals(role);
 
         if (!isOwner && !isAdmin) {
@@ -110,14 +110,14 @@ public class PasteService {
         }
 
         pasteRepository.delete(paste);
-        log.info("Paste deleted: {} by {}", paste.getShortLink(), username);
+        log.info("Paste deleted: {} by {}", paste.getShortLink(), currentUserEmail);
     }
 
     @Transactional(readOnly = true)
     public Page<PasteResponse> search(PasteSearchRequest filter,
                                       int page, int size,
                                       boolean isAuthenticated,
-                                      String currentUsername) {
+                                      String currentUserEmail) {
         Pageable pageable = pageableBuilder.build(filter, page, size);
 
         boolean forcePublic = !isAuthenticated ||
@@ -129,7 +129,7 @@ public class PasteService {
                 .and(keywordMatches(filter.getKeyword()))
                 .and(hasCategory(filter.getCategoryId()))
                 .and(hasTag(filter.getTag()))
-                .and(hasAuthor(filter.getAuthorUsername()))
+                .and(hasAuthor(filter.getAuthorEmail()))
                 .and(createdBetween(filter.getCreatedFrom(), filter.getCreatedTo()));
 
         return pasteRepository.findAll(spec, pageable)

@@ -60,6 +60,9 @@ public class Paste {
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
+    @Column(name = "notified_expiring", nullable = false)
+    private boolean notifiedExpiring = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

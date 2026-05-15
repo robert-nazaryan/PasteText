@@ -26,6 +26,10 @@ spring:
         producer:
             key-serializer: org.apache.kafka.common.serialization.StringSerializer
             value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+        consumer:
+            group-id: paste-api-expiration-group
+            auto-offset-reset: earliest
+            enable-auto-commit: false
 
 server:
     port: 8080
@@ -40,7 +44,21 @@ springdoc:
     swagger-ui:
         path: /swagger-ui.html
 
+management:
+    endpoints:
+        web:
+            exposure:
+                include: health,info,metrics
+    endpoint:
+        health:
+            show-details: always
+
+expiration:
+    scan-interval-ms: 300000
+    batch-size: 500
+
 logging:
     level:
-        com.pastebin: DEBUG
+        com.pastetext: DEBUG
+        com.example.pasteapi: DEBUG
         org.springframework.security: INFO

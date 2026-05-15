@@ -10,6 +10,7 @@ import com.example.pasteapi.entity.User;
 import com.example.pasteapi.exception.ConflictException;
 import com.example.pasteapi.exception.InvalidTokenException;
 import com.example.pasteapi.exception.ResourceNotFoundException;
+import com.example.pasteapi.kafka.PasteKafkaProducer;
 import com.example.pasteapi.repository.RefreshTokenRepository;
 import com.example.pasteapi.repository.UserRepository;
 import jakarta.transaction.Transactional;
@@ -34,29 +35,28 @@ public class AuthService {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtService             jwtService;
+    private final JwtService jwtService;
     private final AuthenticationManager authManager;
+    private final PasteKafkaProducer kafkaProducer;
 
     private static final long REFRESH_TOKEN_DAYS = 30;
 
     @Transactional
     public AuthResponse register(RegisterRequest req) {
-        if (userRepository.existsByUsername(req.getUsername())) {
-            throw new ConflictException("Username already taken");
-        }
         if (userRepository.existsByEmail(req.getEmail())) {
             throw new ConflictException("Email already registered");
         }
 
         User user = User.builder()
-                .username(req.getUsername())
                 .email(req.getEmail())
                 .password(passwordEncoder.encode(req.getPassword()))
                 .role(Role.USER)
                 .build();
 
         userRepository.save(user);
-        log.info("New user registered: {}", user.getUsername());
+        log.info("New user registered: {}", user.getEmail());
+
+        kafkaProducer.sendUserRegistered(user);
 
         return buildAuthResponse(user);
     }
@@ -64,13 +64,12 @@ public class AuthService {
     @Transactional
     public AuthResponse login(LoginRequest req) {
         authManager.authenticate(
-                new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword())
+                new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword())
         );
 
-        User user = userRepository.findByUsername(req.getUsername())
+        User user = userRepository.findByEmail(req.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        // Удаляем старые refresh токены пользователя
         refreshTokenRepository.deleteByUser(user);
 
         return buildAuthResponse(user);
@@ -93,10 +92,10 @@ public class AuthService {
     }
 
     @Transactional
-    public void logout(String username) {
-        userRepository.findByUsername(username).ifPresent(user -> {
+    public void logout(String email) {
+        userRepository.findByEmail(email).ifPresent(user -> {
             refreshTokenRepository.deleteByUser(user);
-            log.info("User logged out: {}", username);
+            log.info("User logged out: {}", email);
         });
     }
 
@@ -107,7 +106,7 @@ public class AuthService {
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
-                .username(user.getUsername())
+                .email(user.getEmail())
                 .role(user.getRole().name())
                 .expiresIn(86400L)
                 .build();

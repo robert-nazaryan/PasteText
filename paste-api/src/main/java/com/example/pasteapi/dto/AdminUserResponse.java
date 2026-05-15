@@ -9,8 +9,7 @@ import java.util.UUID;
 @Data
 @Builder
 public class AdminUserResponse {
-    private UUID id;
-    private String        username;
+    private UUID          id;
     private String        email;
     private String        role;
     private long          pasteCount;

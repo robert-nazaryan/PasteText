@@ -21,8 +21,8 @@ public class AdminSearchRequest {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdTo;
 
-    @Pattern(regexp = "^(username|email|createdAt|pasteCount)$",
-            message = "sortBy must be one of: username, email, createdAt, pasteCount")
+    @Pattern(regexp = "^(email|createdAt|pasteCount)$",
+            message = "sortBy must be one of: email, createdAt, pasteCount")
     private String sortBy = "createdAt";
 
     @Pattern(regexp = "^(asc|desc)$")

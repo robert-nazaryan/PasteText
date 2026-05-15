@@ -41,7 +41,6 @@ public interface PasteRepository extends JpaRepository<Paste, UUID>,
     @Query("DELETE FROM Paste p WHERE p.expiresAt IS NOT NULL AND p.expiresAt < :now")
     int deleteAllExpiredBefore(@Param("now") LocalDateTime now);
 
-    // Admin видит все пасты включая приватные
     @Query("""
     SELECT p FROM Paste p
     LEFT JOIN FETCH p.author
@@ -78,4 +77,14 @@ public interface PasteRepository extends JpaRepository<Paste, UUID>,
 
     @Query("SELECT COALESCE(SUM(p.views), 0) FROM Paste p")
     long sumAllViews();
+
+    @Query("""
+    SELECT p FROM Paste p
+    LEFT JOIN FETCH p.author
+    WHERE p.expiresAt IS NOT NULL
+      AND p.expiresAt BETWEEN :now AND :threshold
+      AND p.notifiedExpiring = false
+    """)
+    List<Paste> findSoonToExpire(@Param("now") LocalDateTime now,
+                                 @Param("threshold") LocalDateTime threshold);
 }

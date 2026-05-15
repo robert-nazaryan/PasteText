@@ -18,8 +18,8 @@ public class PasteSearchRequest {
     @Size(max = 50)
     private String tag;
 
-    @Size(max = 50)
-    private String authorUsername;
+    @Size(max = 100)
+    private String authorEmail;
 
     private Boolean publicOnly = true;
 

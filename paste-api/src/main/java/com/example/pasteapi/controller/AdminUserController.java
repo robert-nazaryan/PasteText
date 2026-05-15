@@ -41,7 +41,7 @@ public class AdminUserController {
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Update user (username / email / role)")
+    @Operation(summary = "Update user (email / role)")
     public ResponseEntity<AdminUserResponse> updateUser(
             @PathVariable UUID id,
             @Valid @RequestBody AdminUpdateUserRequest req) {

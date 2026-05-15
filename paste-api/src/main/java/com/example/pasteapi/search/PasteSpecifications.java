@@ -52,10 +52,10 @@ public class PasteSpecifications {
         };
     }
 
-    public static Specification<Paste> hasAuthor(String username) {
+    public static Specification<Paste> hasAuthor(String email) {
         return (root, query, cb) -> {
-            if (username == null || username.isBlank()) return null;
-            return cb.equal(root.get("author").get("username"), username);
+            if (email == null || email.isBlank()) return null;
+            return cb.equal(root.get("author").get("email"), email);
         };
     }
 

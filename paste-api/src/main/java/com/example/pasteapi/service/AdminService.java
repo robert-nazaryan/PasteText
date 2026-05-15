@@ -39,7 +39,7 @@ public class AdminService {
                                             int page, int size) {
         Pageable pageable = buildPageable(filter.getSortBy(),
                 filter.getSortDir(), page, size,
-                Set.of("username", "email", "createdAt"));
+                Set.of("email", "createdAt"));
 
         Role roleFilter = filter.getRole() != null
                 ? Role.valueOf(filter.getRole()) : null;
@@ -69,14 +69,6 @@ public class AdminService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        if (req.getUsername() != null && !req.getUsername().equals(user.getUsername())) {
-            if (userRepository.existsByUsername(req.getUsername())) {
-                throw new ConflictException("Username already taken");
-            }
-            log.info("Admin changed username: {} → {}", user.getUsername(), req.getUsername());
-            user.setUsername(req.getUsername());
-        }
-
         if (req.getEmail() != null && !req.getEmail().equals(user.getEmail())) {
             if (userRepository.existsByEmail(req.getEmail())) {
                 throw new ConflictException("Email already registered");
@@ -88,7 +80,7 @@ public class AdminService {
             Role newRole = Role.valueOf(req.getRole());
             if (newRole != user.getRole()) {
                 log.warn("Admin changed role: {} {} → {}",
-                        user.getUsername(), user.getRole(), newRole);
+                        user.getEmail(), user.getRole(), newRole);
             }
             user.setRole(newRole);
         }
@@ -104,7 +96,7 @@ public class AdminService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         userRepository.delete(user);
-        log.warn("Admin deleted user: {} ({})", user.getUsername(), id);
+        log.warn("Admin deleted user: {} ({})", user.getEmail(), id);
     }
 
     @Transactional(readOnly = true)
