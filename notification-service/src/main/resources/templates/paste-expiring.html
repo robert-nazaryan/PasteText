@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your paste is expiring soon</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f5f5;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 0;">
+    <tr>
+        <td align="center">
+            <table width="600" cellpadding="0" cellspacing="0"
+                   style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                <!-- Header -->
+                <tr>
+                    <td style="background-color:#1a1a2e;padding:32px 40px;">
+                        <h1 style="margin:0;color:#ffffff;font-size:24px;letter-spacing:1px;">PasteBin</h1>
+                    </td>
+                </tr>
+                <!-- Body -->
+                <tr>
+                    <td style="padding:40px;">
+                        <h2 style="margin:0 0 8px;color:#c0392b;font-size:20px;">
+                            Your paste is expiring soon
+                        </h2>
+                        <p style="margin:0 0 24px;color:#555555;font-size:15px;line-height:1.6;">
+                            Hi <strong th:text="${email}">you@example.com</strong>, your paste
+                            <strong th:text="${pasteTitle}">untitled</strong> will be permanently
+                            deleted in less than 24 hours.
+                        </p>
+                        <!-- Paste info box -->
+                        <table width="100%" cellpadding="0" cellspacing="0"
+                               style="background-color:#f9f9f9;border-left:4px solid #c0392b;
+                                      border-radius:4px;margin-bottom:24px;">
+                            <tr>
+                                <td style="padding:16px 20px;">
+                                    <p style="margin:0 0 6px;color:#888;font-size:12px;text-transform:uppercase;
+                                              letter-spacing:0.5px;">Paste</p>
+                                    <p style="margin:0 0 10px;color:#1a1a2e;font-size:15px;font-weight:bold;"
+                                       th:text="${pasteTitle}">untitled</p>
+                                    <p style="margin:0 0 6px;color:#888;font-size:12px;text-transform:uppercase;
+                                              letter-spacing:0.5px;">Expires at</p>
+                                    <p style="margin:0;color:#c0392b;font-size:14px;"
+                                       th:text="${#temporals.format(expiresAt, 'dd MMM yyyy, HH:mm')}">
+                                        01 Jan 2025, 12:00
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        <table cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td style="border-radius:6px;background-color:#1a1a2e;">
+                                    <a th:href="${pasteUrl}"
+                                       style="display:inline-block;padding:14px 32px;color:#ffffff;
+                                              text-decoration:none;font-size:15px;font-weight:bold;">
+                                        View Paste
+                                    </a>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Footer -->
+                <tr>
+                    <td style="padding:24px 40px;background-color:#f9f9f9;border-top:1px solid #eeeeee;">
+                        <p style="margin:0;color:#aaaaaa;font-size:12px;">
+                            This notification was sent because your paste has an expiry date set.
+                            After expiry, the paste will be permanently deleted and cannot be recovered.
+                        </p>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>
