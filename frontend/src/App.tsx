@@ -7,8 +7,9 @@ import Hero from './components/Hero';
 import PasteCard from './components/PasteCard';
 import PastePage from './components/PastePage';
 import SearchBar from './components/SearchBar';
-import { AuthData, createPaste, fetchPastes, login, register } from './api';
+import { ApiError, AuthData, FieldErrors, createPaste, fetchPastes, login, register } from './api';
 import { CreatePasteFormValues, Paste, PasteLanguage, SortOption } from './types';
+import { hasFieldErrors, validateAuth, validateCreatePaste } from './utils/validation';
 
 const initialFormValues: CreatePasteFormValues = {
   title: '',
@@ -21,6 +22,18 @@ const initialFormValues: CreatePasteFormValues = {
   burnAfterRead: false,
 };
 
+function extractErrorState(err: unknown, fallback: string): { message: string; fieldErrors: FieldErrors } {
+  if (err instanceof ApiError) {
+    const fieldErrors = err.fieldErrors ?? {};
+    const message = hasFieldErrors(fieldErrors) ? '' : err.message || fallback;
+    return { message, fieldErrors };
+  }
+  return {
+    message: err instanceof Error && err.message ? err.message : fallback,
+    fieldErrors: {},
+  };
+}
+
 function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('auth_token'));
   const [authEmail, setAuthEmail] = useState<string | null>(() => localStorage.getItem('auth_email'));
@@ -29,9 +42,11 @@ function App() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [loginFieldErrors, setLoginFieldErrors] = useState<FieldErrors>({});
   const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
 
   const [pastes, setPastes] = useState<Paste[]>([]);
+  const [pastesError, setPastesError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<PasteLanguage | 'all'>('all');
   const [selectedTag, setSelectedTag] = useState('');
@@ -43,16 +58,31 @@ function App() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createValues, setCreateValues] = useState<CreatePasteFormValues>(initialFormValues);
   const [createError, setCreateError] = useState('');
+  const [createFieldErrors, setCreateFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
     setIsLoadingResults(true);
+    setPastesError('');
     fetchPastes(token)
-      .then(setPastes)
-      .catch(() => setPastes([]))
-      .finally(() => setIsLoadingResults(false));
+      .then((data) => {
+        if (cancelled) return;
+        setPastes(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setPastes([]);
+        setPastesError(err instanceof Error ? err.message : 'Failed to load pastes');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingResults(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   useEffect(() => {
@@ -112,18 +142,38 @@ function App() {
       return;
     }
     setCreateError('');
+    setCreateFieldErrors({});
     setCreateValues(initialFormValues);
     setIsCreateOpen(true);
   }
 
+  function handleCreateValuesChange(next: CreatePasteFormValues) {
+    setCreateValues(next);
+    if (createError) setCreateError('');
+    if (hasFieldErrors(createFieldErrors)) {
+      setCreateFieldErrors((prev) => {
+        const cleared: FieldErrors = { ...prev };
+        if (next.content.trim() && cleared.content) delete cleared.content;
+        if (next.title.length <= 255 && cleared.title) delete cleared.title;
+        if ((!next.password || next.password.length <= 72) && cleared.password) delete cleared.password;
+        return cleared;
+      });
+    }
+  }
+
   async function handleCreateSubmit() {
-    if (!createValues.content.trim()) { setCreateError('Paste content is required'); return; }
-    if (createValues.password && createValues.password.length < 12) {
-      setCreateError('Password must be at least 12 characters');
+    if (!token) {
+      setCreateError('You must be logged in to create a paste');
       return;
     }
-    if (!token) { setCreateError('You must be logged in to create a paste'); return; }
+    const clientErrors = validateCreatePaste(createValues);
+    if (hasFieldErrors(clientErrors)) {
+      setCreateFieldErrors(clientErrors);
+      setCreateError('');
+      return;
+    }
     setCreateError('');
+    setCreateFieldErrors({});
     setIsSubmitting(true);
     try {
       const newPaste = await createPaste(createValues, token);
@@ -132,7 +182,9 @@ function App() {
       setCreateValues(initialFormValues);
       setToastMessage('Paste created');
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create paste');
+      const { message, fieldErrors } = extractErrorState(err, 'Failed to create paste');
+      setCreateFieldErrors(fieldErrors);
+      setCreateError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -147,17 +199,31 @@ function App() {
     setLoginEmail('');
     setLoginPassword('');
     setLoginError('');
+    setLoginFieldErrors({});
     setToastMessage(`Welcome, ${data.email}`);
+  }
+
+  function clearLoginFieldError(field: keyof FieldErrors) {
+    setLoginFieldErrors((prev) => {
+      if (!prev[field as string]) return prev;
+      const next = { ...prev };
+      delete next[field as string];
+      return next;
+    });
+    if (loginError) setLoginError('');
   }
 
   async function handleLoginSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!loginEmail.trim() || !loginPassword.trim()) {
-      setLoginError('Email and password are required');
+    const clientErrors = validateAuth(loginEmail, loginPassword, loginMode);
+    if (hasFieldErrors(clientErrors)) {
+      setLoginFieldErrors(clientErrors);
+      setLoginError('');
       return;
     }
     setIsLoginSubmitting(true);
     setLoginError('');
+    setLoginFieldErrors({});
     try {
       if (loginMode === 'login') {
         handleAuthSuccess(await login(loginEmail.trim(), loginPassword));
@@ -165,7 +231,9 @@ function App() {
         handleAuthSuccess(await register(loginEmail.trim(), loginPassword));
       }
     } catch (err) {
-      setLoginError(err instanceof Error ? err.message : 'Authentication failed');
+      const { message, fieldErrors } = extractErrorState(err, 'Authentication failed');
+      setLoginFieldErrors(fieldErrors);
+      setLoginError(message);
     } finally {
       setIsLoginSubmitting(false);
     }
@@ -183,6 +251,7 @@ function App() {
   function switchMode(mode: 'login' | 'register') {
     setLoginMode(mode);
     setLoginError('');
+    setLoginFieldErrors({});
   }
 
   const homeContent = (
@@ -220,7 +289,21 @@ function App() {
           </div>
         )}
 
-        {!isLoadingResults && !paginatedPastes.length && (
+        {!isLoadingResults && pastesError && (
+          <section className="panel empty-state">
+            <h2>Couldn't load pastes</h2>
+            <p className="error-text" aria-live="polite">{pastesError}</p>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setToken((t) => (t === null ? null : t))}
+            >
+              Retry
+            </button>
+          </section>
+        )}
+
+        {!isLoadingResults && !pastesError && !paginatedPastes.length && (
           <section className="panel empty-state">
             <h2>No pastes found</h2>
             <p className="muted">Adjust your filters or create a new paste.</p>
@@ -230,7 +313,7 @@ function App() {
           </section>
         )}
 
-        {!isLoadingResults && paginatedPastes.length > 0 && (
+        {!isLoadingResults && !pastesError && paginatedPastes.length > 0 && (
           <div className="results-grid">
             {paginatedPastes.map((paste) => (
               <PasteCard key={paste.id} paste={paste} />
@@ -305,10 +388,11 @@ function App() {
         isOpen={isCreateOpen}
         values={createValues}
         errorMessage={createError}
+        fieldErrors={createFieldErrors}
         isSubmitting={isSubmitting}
-        onClose={() => { setIsCreateOpen(false); setCreateError(''); }}
+        onClose={() => { setIsCreateOpen(false); setCreateError(''); setCreateFieldErrors({}); }}
         onSubmit={handleCreateSubmit}
-        onChange={setCreateValues}
+        onChange={handleCreateValuesChange}
       />
 
       {isLoginOpen && (
@@ -346,16 +430,23 @@ function App() {
 
             <div className="auth-divider"><span>or</span></div>
 
-            <form className="auth-form" onSubmit={handleLoginSubmit}>
+            <form className="auth-form" onSubmit={handleLoginSubmit} noValidate>
               <label className="field">
                 <span>Email</span>
                 <input
                   type="email"
                   value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
+                  onChange={(e) => { setLoginEmail(e.target.value); clearLoginFieldError('email'); }}
                   placeholder="you@example.com"
                   autoComplete="email"
+                  aria-invalid={!!loginFieldErrors.email}
+                  aria-describedby={loginFieldErrors.email ? 'auth-email-error' : undefined}
                 />
+                {loginFieldErrors.email && (
+                  <span id="auth-email-error" className="field-error" aria-live="polite">
+                    {loginFieldErrors.email}
+                  </span>
+                )}
               </label>
 
               <label className="field">
@@ -363,14 +454,21 @@ function App() {
                 <input
                   type="password"
                   value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
+                  onChange={(e) => { setLoginPassword(e.target.value); clearLoginFieldError('password'); }}
                   placeholder="Password"
                   autoComplete={loginMode === 'login' ? 'current-password' : 'new-password'}
+                  aria-invalid={!!loginFieldErrors.password}
+                  aria-describedby={loginFieldErrors.password ? 'auth-password-error' : undefined}
                 />
+                {loginFieldErrors.password && (
+                  <span id="auth-password-error" className="field-error" aria-live="polite">
+                    {loginFieldErrors.password}
+                  </span>
+                )}
               </label>
 
               {loginError && (
-                <p className="error-text" aria-live="polite">{loginError}</p>
+                <p className="error-text" role="alert" aria-live="assertive">{loginError}</p>
               )}
 
               <button className="primary-button" type="submit" disabled={isLoginSubmitting}>

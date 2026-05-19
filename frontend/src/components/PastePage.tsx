@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { deletePaste, getPasteBySlug } from '../api';
+import { ApiError, deletePaste, getPasteBySlug } from '../api';
 import { Paste } from '../types';
 import { formatDate, formatViews } from '../utils/pastes';
 import PasswordProtected from './PasswordProtected';
@@ -19,49 +19,102 @@ function PastePage({ token, authEmail, onToast }: PastePageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
+    let cancelled = false;
     setLoading(true);
     setError('');
+    setUnlocked(false);
+    setPasswordError('');
     getPasteBySlug(slug)
-      .then(setPaste)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Paste not found'))
-      .finally(() => setLoading(false));
+      .then((p) => {
+        if (!cancelled) setPaste(p);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 403) {
+          // Password-protected paste: backend returns 403, but we still need to render the form.
+          setPaste({
+            id: '',
+            slug,
+            title: 'Protected paste',
+            author: '',
+            role: 'USER',
+            language: 'auto',
+            tags: [],
+            content: '',
+            createdAt: new Date().toISOString(),
+            views: 0,
+            visibility: 'private',
+            burnAfterRead: false,
+            requiresPassword: true,
+            expiresIn: 'Never',
+          });
+          return;
+        }
+        setError(err instanceof Error ? err.message : 'Paste not found');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [slug]);
 
   async function handleUnlock(password: string) {
     if (!slug) return;
+    setUnlocking(true);
+    setPasswordError('');
     try {
       const p = await getPasteBySlug(slug, password);
       setPaste(p);
       setUnlocked(true);
-      setPasswordError('');
-    } catch {
-      setPasswordError('Incorrect password');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setPasswordError('Incorrect password');
+      } else {
+        setPasswordError(err instanceof Error ? err.message : 'Failed to unlock paste');
+      }
+    } finally {
+      setUnlocking(false);
     }
   }
 
   async function handleCopyUrl() {
-    await navigator.clipboard.writeText(window.location.href);
-    onToast('Copied to clipboard');
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      onToast('Copied to clipboard');
+    } catch {
+      onToast('Failed to copy URL');
+    }
   }
 
   async function handleCopyContent() {
     if (!paste) return;
-    await navigator.clipboard.writeText(paste.content);
-    onToast('Copied to clipboard');
+    try {
+      await navigator.clipboard.writeText(paste.content);
+      onToast('Copied to clipboard');
+    } catch {
+      onToast('Failed to copy content');
+    }
   }
 
   async function handleDelete() {
     if (!paste || !token) return;
+    setDeleting(true);
     try {
       await deletePaste(paste.id, token);
       onToast('Paste deleted');
       navigate('/');
-    } catch {
-      onToast('Failed to delete paste');
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : 'Failed to delete paste');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -106,8 +159,13 @@ function PastePage({ token, authEmail, onToast }: PastePageProps) {
             </button>
           )}
           {isOwner && !needsPassword && (
-            <button className="danger-button" type="button" onClick={handleDelete}>
-              Delete
+            <button
+              className="danger-button"
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
             </button>
           )}
         </div>
@@ -118,6 +176,7 @@ function PastePage({ token, authEmail, onToast }: PastePageProps) {
           <PasswordProtected
             title={paste.title}
             errorMessage={passwordError}
+            isSubmitting={unlocking}
             onSubmit={handleUnlock}
           />
         </div>

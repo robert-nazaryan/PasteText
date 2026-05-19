@@ -8,6 +8,27 @@ export interface AuthData {
   role: string;
 }
 
+export type FieldErrors = Record<string, string>;
+
+export class ApiError extends Error {
+  status: number;
+  fieldErrors: FieldErrors;
+
+  constructor(message: string, status: number, fieldErrors: FieldErrors = {}) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.fieldErrors = fieldErrors;
+  }
+}
+
+interface BackendErrorBody {
+  status?: number;
+  error?: string;
+  message?: string;
+  fieldErrors?: FieldErrors | null;
+}
+
 interface BackendPaste {
   id: string;
   title: string | null;
@@ -70,14 +91,61 @@ function mapPaste(bp: BackendPaste): Paste {
   };
 }
 
+function defaultMessageForStatus(status: number): string {
+  if (status === 0) return 'Network error - please check your connection';
+  if (status === 401) return 'Authentication required';
+  if (status === 403) return 'You do not have permission to perform this action';
+  if (status === 404) return 'Resource not found';
+  if (status === 409) return 'Conflict with current state';
+  if (status === 410) return 'Resource is no longer available';
+  if (status === 413) return 'Request is too large';
+  if (status === 429) return 'Too many requests - please try again later';
+  if (status >= 500) return 'Server error - please try again';
+  return 'Request failed';
+}
+
+async function parseError(res: Response): Promise<ApiError> {
+  let body: BackendErrorBody | null = null;
+  let raw = '';
+  try {
+    raw = await res.text();
+    if (raw) {
+      const parsed = JSON.parse(raw) as BackendErrorBody;
+      if (parsed && typeof parsed === 'object') body = parsed;
+    }
+  } catch {
+    // non-JSON body (e.g. HTML error page) - fall through to default message
+  }
+
+  const fieldErrors: FieldErrors = body?.fieldErrors && typeof body.fieldErrors === 'object'
+    ? body.fieldErrors
+    : {};
+
+  const message =
+    body?.message ||
+    (raw && !body ? raw : '') ||
+    defaultMessageForStatus(res.status);
+
+  return new ApiError(message, res.status, fieldErrors);
+}
+
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API}${path}`, options);
+  let res: Response;
+  try {
+    res = await fetch(`${API}${path}`, options);
+  } catch (err) {
+    throw new ApiError(defaultMessageForStatus(0), 0);
+  }
+
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(text || `HTTP ${res.status}`);
+    throw await parseError(res);
   }
   if (res.status === 204) return undefined as unknown as T;
-  return res.json();
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new ApiError('Unexpected response from server', res.status);
+  }
 }
 
 export async function login(email: string, password: string): Promise<AuthData> {

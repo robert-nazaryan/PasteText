@@ -1,4 +1,5 @@
 import { ChangeEvent, FormEvent } from 'react';
+import { FieldErrors } from '../api';
 import { CreatePasteFormValues, PasteVisibility } from '../types';
 import { expiryOptions, languageOptions } from '../utils/pastes';
 
@@ -6,6 +7,7 @@ interface CreatePasteModalProps {
   isOpen: boolean;
   values: CreatePasteFormValues;
   errorMessage: string;
+  fieldErrors: FieldErrors;
   isSubmitting: boolean;
   onClose: () => void;
   onSubmit: () => void;
@@ -16,6 +18,7 @@ function CreatePasteModal({
   isOpen,
   values,
   errorMessage,
+  fieldErrors,
   isSubmitting,
   onClose,
   onSubmit,
@@ -52,6 +55,8 @@ function CreatePasteModal({
     onSubmit();
   }
 
+  const fieldError = (name: string) => fieldErrors[name];
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <section
@@ -71,7 +76,7 @@ function CreatePasteModal({
           </button>
         </div>
 
-        <form className="create-form" onSubmit={handleSubmit}>
+        <form className="create-form" onSubmit={handleSubmit} noValidate>
           <label className="field field-full">
             <span>Title</span>
             <input
@@ -79,8 +84,16 @@ function CreatePasteModal({
               type="text"
               value={values.title}
               placeholder="Paste title"
+              maxLength={255}
+              aria-invalid={!!fieldError('title')}
+              aria-describedby={fieldError('title') ? 'create-title-error' : undefined}
               onChange={handleInputChange}
             />
+            {fieldError('title') && (
+              <span id="create-title-error" className="field-error" aria-live="polite">
+                {fieldError('title')}
+              </span>
+            )}
           </label>
 
           <label className="field field-full">
@@ -90,8 +103,15 @@ function CreatePasteModal({
               rows={14}
               value={values.content}
               placeholder="Paste code, logs, or notes"
+              aria-invalid={!!fieldError('content')}
+              aria-describedby={fieldError('content') ? 'create-content-error' : undefined}
               onChange={handleInputChange}
             />
+            {fieldError('content') && (
+              <span id="create-content-error" className="field-error" aria-live="polite">
+                {fieldError('content')}
+              </span>
+            )}
           </label>
 
           <label className="field">
@@ -107,13 +127,24 @@ function CreatePasteModal({
 
           <label className="field">
             <span>Expiry</span>
-            <select name="expiresIn" value={values.expiresIn} onChange={handleInputChange}>
+            <select
+              name="expiresIn"
+              value={values.expiresIn}
+              onChange={handleInputChange}
+              aria-invalid={!!fieldError('expiresAt')}
+              aria-describedby={fieldError('expiresAt') ? 'create-expires-error' : undefined}
+            >
               {expiryOptions.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>
               ))}
             </select>
+            {fieldError('expiresAt') && (
+              <span id="create-expires-error" className="field-error" aria-live="polite">
+                {fieldError('expiresAt')}
+              </span>
+            )}
           </label>
 
           <label className="field">
@@ -123,8 +154,15 @@ function CreatePasteModal({
               type="text"
               value={values.tags}
               placeholder="docker, auth, logs"
+              aria-invalid={!!fieldError('tags')}
+              aria-describedby={fieldError('tags') ? 'create-tags-error' : undefined}
               onChange={handleInputChange}
             />
+            {fieldError('tags') && (
+              <span id="create-tags-error" className="field-error" aria-live="polite">
+                {fieldError('tags')}
+              </span>
+            )}
           </label>
 
           <label className="field">
@@ -134,8 +172,16 @@ function CreatePasteModal({
               type="password"
               value={values.password}
               placeholder="Optional"
+              maxLength={72}
+              aria-invalid={!!fieldError('password')}
+              aria-describedby={fieldError('password') ? 'create-password-error' : undefined}
               onChange={handleInputChange}
             />
+            {fieldError('password') && (
+              <span id="create-password-error" className="field-error" aria-live="polite">
+                {fieldError('password')}
+              </span>
+            )}
           </label>
 
           <fieldset className="toggle-group">
@@ -172,7 +218,7 @@ function CreatePasteModal({
           </label>
 
           {errorMessage ? (
-            <p className="error-text field-full" aria-live="polite">
+            <p className="error-text field-full" role="alert" aria-live="assertive">
               {errorMessage}
             </p>
           ) : null}

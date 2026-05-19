@@ -513,6 +513,20 @@ a:focus-visible {
   margin: 0;
 }
 
+.field-error {
+  color: #b91c1c;
+  font-size: 0.8125rem;
+  margin-top: 4px;
+  display: block;
+}
+
+input[aria-invalid='true'],
+textarea[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: #b91c1c;
+  outline-color: #b91c1c;
+}
+
 /* ─── Auth modal ─── */
 
 .auth-form {

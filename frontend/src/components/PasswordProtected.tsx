@@ -3,16 +3,25 @@ import { FormEvent, useState } from 'react';
 interface PasswordProtectedProps {
   title: string;
   errorMessage?: string;
+  isSubmitting?: boolean;
   onSubmit: (password: string) => void;
 }
 
-function PasswordProtected({ title, errorMessage, onSubmit }: PasswordProtectedProps) {
+function PasswordProtected({ title, errorMessage, isSubmitting, onSubmit }: PasswordProtectedProps) {
   const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState('');
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!password) {
+      setLocalError('Password is required');
+      return;
+    }
+    setLocalError('');
     onSubmit(password);
   }
+
+  const displayedError = localError || errorMessage;
 
   return (
     <section className="password-panel" aria-labelledby="password-title">
@@ -24,25 +33,30 @@ function PasswordProtected({ title, errorMessage, onSubmit }: PasswordProtectedP
         </p>
       </div>
 
-      <form className="password-form" onSubmit={handleSubmit}>
+      <form className="password-form" onSubmit={handleSubmit} noValidate>
         <label className="field">
           <span>Password</span>
           <input
-            aria-describedby={errorMessage ? 'password-error' : undefined}
+            aria-invalid={!!displayedError}
+            aria-describedby={displayedError ? 'password-error' : undefined}
             type="password"
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              if (localError) setLocalError('');
+            }}
+            autoFocus
           />
         </label>
 
-        {errorMessage ? (
-          <p id="password-error" className="error-text" aria-live="polite">
-            {errorMessage}
+        {displayedError ? (
+          <p id="password-error" className="error-text" role="alert" aria-live="assertive">
+            {displayedError}
           </p>
         ) : null}
 
-        <button className="primary-button" type="submit">
-          Unlock
+        <button className="primary-button" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Unlocking...' : 'Unlock'}
         </button>
       </form>
     </section>
