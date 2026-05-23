@@ -8,7 +8,6 @@ import nginx from 'highlight.js/lib/languages/nginx';
 import plaintext from 'highlight.js/lib/languages/plaintext';
 import typescript from 'highlight.js/lib/languages/typescript';
 import yaml from 'highlight.js/lib/languages/yaml';
-import { PasteLanguage } from '../types';
 
 hljs.registerLanguage('bash', bash);
 hljs.registerLanguage('javascript', javascript);
@@ -21,17 +20,10 @@ hljs.registerLanguage('yaml', yaml);
 
 interface SyntaxHighlightProps {
   code: string;
-  language: PasteLanguage;
 }
 
-function SyntaxHighlight({ code, language }: SyntaxHighlightProps) {
-  const highlightedCode = useMemo(() => {
-    if (language === 'auto') {
-      return hljs.highlightAuto(code).value;
-    }
-
-    return hljs.highlight(code, { language }).value;
-  }, [code, language]);
+function SyntaxHighlight({ code }: SyntaxHighlightProps) {
+  const highlightedCode = useMemo(() => hljs.highlightAuto(code).value, [code]);
 
   return (
     <pre className="code-block">

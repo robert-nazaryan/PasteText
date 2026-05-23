@@ -1,14 +1,3 @@
-export type PasteLanguage =
-  | 'auto'
-  | 'typescript'
-  | 'javascript'
-  | 'json'
-  | 'bash'
-  | 'yaml'
-  | 'nginx'
-  | 'markdown'
-  | 'plaintext';
-
 export type PasteVisibility = 'public' | 'private';
 
 export type SortOption = 'newest' | 'oldest' | 'most-viewed';
@@ -19,7 +8,6 @@ export interface Paste {
   title: string;
   author: string;
   role: 'USER' | 'ADMIN';
-  language: PasteLanguage;
   tags: string[];
   content: string;
   createdAt: string;
@@ -35,7 +23,6 @@ export interface Paste {
 export interface CreatePasteFormValues {
   title: string;
   content: string;
-  language: PasteLanguage;
   tags: string;
   visibility: PasteVisibility;
   expiresIn: string;

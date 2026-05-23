@@ -69,7 +69,6 @@ function PasteDetail({
       </div>
 
       <div className="detail-meta">
-        <span className="language-badge">{paste.language}</span>
         <span className="status-badge">{paste.visibility}</span>
         {paste.burnAfterRead ? <span className="status-badge">Burn after read</span> : null}
         <span className="status-badge">{paste.expiresIn}</span>
@@ -88,7 +87,7 @@ function PasteDetail({
         <code>/p/{paste.slug}</code>
       </div>
 
-      <SyntaxHighlight code={paste.content} language={paste.language} />
+      <SyntaxHighlight code={paste.content} />
     </aside>
   );
 }

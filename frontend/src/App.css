@@ -289,7 +289,6 @@ a:focus-visible {
 
 /* ─── Badges / chips ─── */
 
-.language-badge,
 .status-badge,
 .tag-chip {
   display: inline-flex;
@@ -300,10 +299,6 @@ a:focus-visible {
   border: 1px solid #e5e7eb;
   font-size: 0.75rem;
   background: #f8fafc;
-}
-
-.language-badge {
-  font-family: 'JetBrains Mono', monospace;
 }
 
 /* ─── Code block ─── */

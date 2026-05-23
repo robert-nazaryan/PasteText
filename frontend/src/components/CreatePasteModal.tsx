@@ -1,7 +1,7 @@
 import { ChangeEvent, FormEvent } from 'react';
-import { FieldErrors } from '../api';
+import { FieldErrors } from '../api/api';
 import { CreatePasteFormValues, PasteVisibility } from '../types';
-import { expiryOptions, languageOptions } from '../utils/pastes';
+import { expiryOptions } from '../utils/pastes';
 
 interface CreatePasteModalProps {
   isOpen: boolean;
@@ -112,17 +112,6 @@ function CreatePasteModal({
                 {fieldError('content')}
               </span>
             )}
-          </label>
-
-          <label className="field">
-            <span>Language</span>
-            <select name="language" value={values.language} onChange={handleInputChange}>
-              {languageOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
           </label>
 
           <label className="field">

@@ -1,4 +1,4 @@
-import { CreatePasteFormValues, Paste } from './types';
+import { CreatePasteFormValues, Paste } from '../types';
 
 const API = '/api/v1';
 
@@ -45,6 +45,31 @@ interface BackendPaste {
 
 interface BackendPage<T> {
   content: T[];
+  totalElements?: number;
+  totalPages?: number;
+  number?: number;
+  size?: number;
+}
+
+export type PasteSortField = 'createdAt' | 'views' | 'title';
+export type PasteSortDir = 'asc' | 'desc';
+
+export interface PasteSearchParams {
+  keyword?: string;
+  tag?: string;
+  authorEmail?: string;
+  sortBy?: PasteSortField;
+  sortDir?: PasteSortDir;
+  page?: number;
+  size?: number;
+  publicOnly?: boolean;
+}
+
+export interface PasteSearchResult {
+  items: Paste[];
+  total: number;
+  page: number;
+  size: number;
 }
 
 function expiresAtParam(expiresIn: string): string | undefined {
@@ -79,7 +104,6 @@ function mapPaste(bp: BackendPaste): Paste {
     title: bp.title || 'Untitled paste',
     author: bp.authorEmail,
     role: 'USER',
-    language: 'auto',
     tags: bp.tags ?? [],
     content: bp.content ?? '',
     createdAt: bp.createdAt,
@@ -164,12 +188,35 @@ export async function register(email: string, password: string): Promise<AuthDat
   });
 }
 
-export async function fetchPastes(token?: string | null): Promise<Paste[]> {
+export async function searchPastes(
+  params: PasteSearchParams = {},
+  token?: string | null,
+): Promise<PasteSearchResult> {
+  const q = new URLSearchParams();
+  if (params.keyword && params.keyword.trim()) q.set('keyword', params.keyword.trim());
+  if (params.tag) q.set('tag', params.tag);
+  if (params.authorEmail) q.set('authorEmail', params.authorEmail);
+  if (params.sortBy) q.set('sortBy', params.sortBy);
+  if (params.sortDir) q.set('sortDir', params.sortDir);
+  if (typeof params.page === 'number') q.set('page', String(params.page));
+  if (typeof params.size === 'number') q.set('size', String(params.size));
+  if (typeof params.publicOnly === 'boolean') q.set('publicOnly', String(params.publicOnly));
+
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const url = token ? '/pastes?size=50&publicOnly=false' : '/pastes?size=50';
-  const data = await apiFetch<BackendPage<BackendPaste>>(url, { headers });
-  return data.content.map(mapPaste);
+
+  const qs = q.toString();
+  const data = await apiFetch<BackendPage<BackendPaste>>(
+    qs ? `/pastes?${qs}` : '/pastes',
+    { headers },
+  );
+
+  return {
+    items: data.content.map(mapPaste),
+    total: typeof data.totalElements === 'number' ? data.totalElements : data.content.length,
+    page: typeof data.number === 'number' ? data.number : (params.page ?? 0),
+    size: typeof data.size === 'number' ? data.size : (params.size ?? 20),
+  };
 }
 
 export async function createPaste(values: CreatePasteFormValues, token: string): Promise<Paste> {

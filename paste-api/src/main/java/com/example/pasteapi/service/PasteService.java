@@ -3,6 +3,7 @@ package com.example.pasteapi.service;
 import com.example.pasteapi.dto.PasteCreateRequest;
 import com.example.pasteapi.dto.PasteResponse;
 import com.example.pasteapi.dto.PasteSearchRequest;
+import com.example.pasteapi.elasticsearch.ElasticsearchPasteSearchService;
 import com.example.pasteapi.entity.Paste;
 import com.example.pasteapi.entity.Tag;
 import com.example.pasteapi.entity.User;
@@ -20,19 +21,21 @@ import com.example.pasteapi.util.ShortLinkGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
-import static com.example.pasteapi.search.PasteSpecifications.*;
 
 @Service
 @RequiredArgsConstructor
@@ -48,6 +51,7 @@ public class PasteService {
     private final PasteKafkaProducer kafkaProducer;
     private final PastePageableBuilder pageableBuilder;
     private final PasteMapper pasteMapper;
+    private final ElasticsearchPasteSearchService elasticsearchSearchService;
 
     @Transactional
     public PasteResponse create(PasteCreateRequest req, String currentUserEmail) {
@@ -58,6 +62,7 @@ public class PasteService {
         Paste saved = pasteRepository.save(paste);
 
         kafkaProducer.sendPasteCreated(saved);
+        elasticsearchSearchService.index(saved);
         log.info("Paste created: {}", saved.getShortLink());
 
         return pasteMapper.toResponse(saved);
@@ -80,6 +85,8 @@ public class PasteService {
         }
 
         pasteRepository.incrementViewsBy(paste.getId(), 1);
+        paste.setViews(paste.getViews() + 1);
+        elasticsearchSearchService.index(paste);
         return pasteMapper.toResponse(paste);
     }
 
@@ -94,6 +101,7 @@ public class PasteService {
 
         applyUpdates(paste, req);
         Paste saved = pasteRepository.save(paste);
+        elasticsearchSearchService.index(saved);
         return pasteMapper.toResponse(saved);
     }
 
@@ -110,6 +118,7 @@ public class PasteService {
         }
 
         pasteRepository.delete(paste);
+        elasticsearchSearchService.delete(paste.getId());
         log.info("Paste deleted: {} by {}", paste.getShortLink(), currentUserEmail);
     }
 
@@ -123,17 +132,24 @@ public class PasteService {
         boolean forcePublic = !isAuthenticated ||
                 Boolean.TRUE.equals(filter.getPublicOnly());
 
-        Specification<Paste> spec = Specification
-                .where(notExpired())
-                .and(forcePublic ? isPublic() : null)
-                .and(keywordMatches(filter.getKeyword()))
-                .and(hasCategory(filter.getCategoryId()))
-                .and(hasTag(filter.getTag()))
-                .and(hasAuthor(filter.getAuthorEmail()))
-                .and(createdBetween(filter.getCreatedFrom(), filter.getCreatedTo()));
+        Page<UUID> idsPage = elasticsearchSearchService.searchIds(filter, forcePublic, pageable);
+        List<UUID> ids = idsPage.getContent();
+        if (ids.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, idsPage.getTotalElements());
+        }
 
-        return pasteRepository.findAll(spec, pageable)
-                .map(pasteMapper::toPreview);
+        Map<UUID, Paste> byId = new HashMap<>();
+        for (Paste p : pasteRepository.findAllById(ids)) {
+            byId.put(p.getId(), p);
+        }
+
+        List<PasteResponse> ordered = ids.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .map(pasteMapper::toPreview)
+                .toList();
+
+        return new PageImpl<>(ordered, pageable, idsPage.getTotalElements());
     }
 
     private Paste buildPaste(PasteCreateRequest req, User author) {

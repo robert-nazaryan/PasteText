@@ -7,14 +7,23 @@ import Hero from './components/Hero';
 import PasteCard from './components/PasteCard';
 import PastePage from './components/PastePage';
 import SearchBar from './components/SearchBar';
-import { ApiError, AuthData, FieldErrors, createPaste, fetchPastes, login, register } from './api';
-import { CreatePasteFormValues, Paste, PasteLanguage, SortOption } from './types';
+import { ApiError, AuthData, FieldErrors, PasteSortDir, PasteSortField, createPaste, login, register, searchPastes } from './api/api';
+import { CreatePasteFormValues, Paste, SortOption } from './types';
 import { hasFieldErrors, validateAuth, validateCreatePaste } from './utils/validation';
+
+const PAGE_SIZE = 9;
+const FACET_SIZE = 100;
+const SEARCH_DEBOUNCE_MS = 300;
+
+const SORT_PARAMS: Record<SortOption, { sortBy: PasteSortField; sortDir: PasteSortDir }> = {
+  newest: { sortBy: 'createdAt', sortDir: 'desc' },
+  oldest: { sortBy: 'createdAt', sortDir: 'asc' },
+  'most-viewed': { sortBy: 'views', sortDir: 'desc' },
+};
 
 const initialFormValues: CreatePasteFormValues = {
   title: '',
   content: '',
-  language: 'auto',
   tags: '',
   visibility: 'public',
   expiresIn: 'Never',
@@ -46,13 +55,16 @@ function App() {
   const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
 
   const [pastes, setPastes] = useState<Paste[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [facetPastes, setFacetPastes] = useState<Paste[]>([]);
   const [pastesError, setPastesError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLanguage, setSelectedLanguage] = useState<PasteLanguage | 'all'>('all');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
   const [selectedAuthor, setSelectedAuthor] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('newest');
   const [currentPage, setCurrentPage] = useState(1);
+  const [refetchKey, setRefetchKey] = useState(0);
   const [isLoadingResults, setIsLoadingResults] = useState(true);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -64,26 +76,63 @@ function App() {
   const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedQuery(searchQuery.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(id);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    searchPastes(
+      { size: FACET_SIZE, publicOnly: token ? false : undefined },
+      token,
+    )
+      .then((res) => {
+        if (!cancelled) setFacetPastes(res.items);
+      })
+      .catch(() => {
+        if (!cancelled) setFacetPastes([]);
+      });
+    return () => { cancelled = true; };
+  }, [token, refetchKey]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedQuery, selectedTag, selectedAuthor, sortOption]);
+
+  useEffect(() => {
     let cancelled = false;
     setIsLoadingResults(true);
     setPastesError('');
-    fetchPastes(token)
-      .then((data) => {
+    const { sortBy, sortDir } = SORT_PARAMS[sortOption];
+    searchPastes(
+      {
+        keyword: debouncedQuery || undefined,
+        tag: selectedTag || undefined,
+        authorEmail: selectedAuthor || undefined,
+        sortBy,
+        sortDir,
+        page: currentPage - 1,
+        size: PAGE_SIZE,
+        publicOnly: token ? false : undefined,
+      },
+      token,
+    )
+      .then((res) => {
         if (cancelled) return;
-        setPastes(data);
+        setPastes(res.items);
+        setTotalCount(res.total);
       })
       .catch((err) => {
         if (cancelled) return;
         setPastes([]);
+        setTotalCount(0);
         setPastesError(err instanceof Error ? err.message : 'Failed to load pastes');
       })
       .finally(() => {
         if (!cancelled) setIsLoadingResults(false);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+    return () => { cancelled = true; };
+  }, [token, debouncedQuery, selectedTag, selectedAuthor, sortOption, currentPage, refetchKey]);
 
   useEffect(() => {
     if (!toastMessage) return undefined;
@@ -92,45 +141,17 @@ function App() {
   }, [toastMessage]);
 
   const authors = useMemo(
-    () => Array.from(new Set(pastes.map((p) => p.author))).sort(),
-    [pastes]
+    () => Array.from(new Set(facetPastes.map((p) => p.author))).sort(),
+    [facetPastes]
   );
 
   const tags = useMemo(
-    () => Array.from(new Set(pastes.flatMap((p) => p.tags))).sort(),
-    [pastes]
+    () => Array.from(new Set(facetPastes.flatMap((p) => p.tags))).sort(),
+    [facetPastes]
   );
 
-  const filteredPastes = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    const visible = pastes.filter((p) => {
-      const accessible = p.visibility === 'public' || p.author === authEmail;
-      const matchesQuery =
-        !query ||
-        p.title.toLowerCase().includes(query) ||
-        p.tags.some((t) => t.toLowerCase().includes(query)) ||
-        p.content.toLowerCase().includes(query);
-      const matchesLanguage = selectedLanguage === 'all' || p.language === selectedLanguage;
-      const matchesTag = !selectedTag || p.tags.includes(selectedTag);
-      const matchesAuthor = !selectedAuthor || p.author === selectedAuthor;
-      return accessible && matchesQuery && matchesLanguage && matchesTag && matchesAuthor;
-    });
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-    return [...visible].sort((a, b) => {
-      if (sortOption === 'most-viewed') return b.views - a.views;
-      const at = new Date(a.createdAt).getTime();
-      const bt = new Date(b.createdAt).getTime();
-      return sortOption === 'oldest' ? at - bt : bt - at;
-    });
-  }, [pastes, authEmail, searchQuery, selectedLanguage, selectedTag, selectedAuthor, sortOption]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredPastes.length / 9));
-  const paginatedPastes = useMemo(() => {
-    const start = (currentPage - 1) * 9;
-    return filteredPastes.slice(start, start + 9);
-  }, [currentPage, filteredPastes]);
-
-  useEffect(() => { setCurrentPage(1); }, [searchQuery, selectedLanguage, selectedTag, selectedAuthor, sortOption]);
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
@@ -176,10 +197,11 @@ function App() {
     setCreateFieldErrors({});
     setIsSubmitting(true);
     try {
-      const newPaste = await createPaste(createValues, token);
-      setPastes((prev) => [newPaste, ...prev]);
+      await createPaste(createValues, token);
       setIsCreateOpen(false);
       setCreateValues(initialFormValues);
+      setCurrentPage(1);
+      setRefetchKey((k) => k + 1);
       setToastMessage('Paste created');
     } catch (err) {
       const { message, fieldErrors } = extractErrorState(err, 'Failed to create paste');
@@ -245,6 +267,8 @@ function App() {
     setToken(null);
     setAuthEmail(null);
     setPastes([]);
+    setTotalCount(0);
+    setFacetPastes([]);
     setToastMessage('Logged out');
   }
 
@@ -260,14 +284,12 @@ function App() {
 
       <SearchBar
         searchQuery={searchQuery}
-        selectedLanguage={selectedLanguage}
         selectedTag={selectedTag}
         selectedAuthor={selectedAuthor}
         sortOption={sortOption}
         authors={authors}
         tags={tags}
         onSearchChange={setSearchQuery}
-        onLanguageChange={setSelectedLanguage}
         onTagChange={setSelectedTag}
         onAuthorChange={setSelectedAuthor}
         onSortChange={setSortOption}
@@ -275,7 +297,7 @@ function App() {
 
       <div className="results-section">
         <div className="results-header">
-          <p className="muted">{filteredPastes.length} paste{filteredPastes.length !== 1 ? 's' : ''}</p>
+          <p className="muted">{totalCount} paste{totalCount !== 1 ? 's' : ''}</p>
           <button className="secondary-button" type="button" onClick={openCreateModal}>
             New paste
           </button>
@@ -296,14 +318,14 @@ function App() {
             <button
               className="secondary-button"
               type="button"
-              onClick={() => setToken((t) => (t === null ? null : t))}
+              onClick={() => setRefetchKey((k) => k + 1)}
             >
               Retry
             </button>
           </section>
         )}
 
-        {!isLoadingResults && !pastesError && !paginatedPastes.length && (
+        {!isLoadingResults && !pastesError && !pastes.length && (
           <section className="panel empty-state">
             <h2>No pastes found</h2>
             <p className="muted">Adjust your filters or create a new paste.</p>
@@ -313,9 +335,9 @@ function App() {
           </section>
         )}
 
-        {!isLoadingResults && !pastesError && paginatedPastes.length > 0 && (
+        {!isLoadingResults && !pastesError && pastes.length > 0 && (
           <div className="results-grid">
-            {paginatedPastes.map((paste) => (
+            {pastes.map((paste) => (
               <PasteCard key={paste.id} paste={paste} />
             ))}
           </div>

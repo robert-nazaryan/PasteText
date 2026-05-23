@@ -1,18 +1,6 @@
-import { CreatePasteFormValues, Paste, PasteLanguage } from '../types';
+import { CreatePasteFormValues, Paste } from '../types';
 
 const BASE62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-
-export const languageOptions: Array<{ value: PasteLanguage; label: string }> = [
-  { value: 'auto', label: 'Auto detect' },
-  { value: 'typescript', label: 'TypeScript' },
-  { value: 'javascript', label: 'JavaScript' },
-  { value: 'json', label: 'JSON' },
-  { value: 'bash', label: 'Bash' },
-  { value: 'yaml', label: 'YAML' },
-  { value: 'nginx', label: 'nginx' },
-  { value: 'markdown', label: 'Markdown' },
-  { value: 'plaintext', label: 'Plain text' },
-];
 
 export const expiryOptions = [
   'Never',
@@ -57,7 +45,6 @@ export function buildPaste(values: CreatePasteFormValues, author: string): Paste
     title: values.title.trim() || 'Untitled paste',
     author,
     role: 'USER',
-    language: values.language,
     tags: parseTags(values.tags),
     content: values.content,
     createdAt: new Date().toISOString(),

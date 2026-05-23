@@ -1,6 +1,7 @@
 package com.example.pasteapi.service;
 
 import com.example.pasteapi.dto.PasteEventDto;
+import com.example.pasteapi.elasticsearch.ElasticsearchPasteSearchService;
 import com.example.pasteapi.entity.PasteExpiration;
 import com.example.pasteapi.repository.PasteExpirationRepository;
 import com.example.pasteapi.repository.PasteRepository;
@@ -24,6 +25,7 @@ public class PasteExpirationService {
 
     private final PasteExpirationRepository expirationRepository;
     private final PasteRepository pasteRepository;
+    private final ElasticsearchPasteSearchService elasticsearchSearchService;
 
     @Value("${expiration.batch-size:500}")
     private int batchSize;
@@ -55,6 +57,7 @@ public class PasteExpirationService {
         List<String> shortLinks = due.stream().map(PasteExpiration::getShortLink).toList();
 
         int deleted = pasteRepository.deleteByIdIn(pasteIds);
+        elasticsearchSearchService.deleteAll(pasteIds);
         expirationRepository.markDeleted(pasteIds, now);
 
         log.info("Expired {} pastes. Short links: {}",

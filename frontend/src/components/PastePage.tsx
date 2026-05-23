@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ApiError, deletePaste, getPasteBySlug } from '../api';
+import { ApiError, deletePaste, getPasteBySlug } from '../api/api';
 import { Paste } from '../types';
 import { formatDate, formatViews } from '../utils/pastes';
 import PasswordProtected from './PasswordProtected';
@@ -44,7 +44,6 @@ function PastePage({ token, authEmail, onToast }: PastePageProps) {
             title: 'Protected paste',
             author: '',
             role: 'USER',
-            language: 'auto',
             tags: [],
             content: '',
             createdAt: new Date().toISOString(),
@@ -190,7 +189,6 @@ function PastePage({ token, authEmail, onToast }: PastePageProps) {
               </p>
             </div>
             <div className="paste-article-badges">
-              <span className="language-badge">{paste.language}</span>
               <span className="status-badge">{paste.visibility}</span>
               {paste.expiresIn !== 'Never' && (
                 <span className="status-badge">Expires: {paste.expiresIn}</span>
@@ -212,7 +210,7 @@ function PastePage({ token, authEmail, onToast }: PastePageProps) {
             <code>/p/{paste.slug}</code>
           </div>
 
-          <SyntaxHighlight code={paste.content} language={paste.language} />
+          <SyntaxHighlight code={paste.content} />
         </article>
       )}
     </div>

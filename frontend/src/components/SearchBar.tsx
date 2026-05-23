@@ -1,17 +1,14 @@
 import { ChangeEvent } from 'react';
-import { PasteLanguage, SortOption } from '../types';
-import { languageOptions } from '../utils/pastes';
+import { SortOption } from '../types';
 
 interface SearchBarProps {
   searchQuery: string;
-  selectedLanguage: PasteLanguage | 'all';
   selectedTag: string;
   selectedAuthor: string;
   sortOption: SortOption;
   authors: string[];
   tags: string[];
   onSearchChange: (value: string) => void;
-  onLanguageChange: (value: PasteLanguage | 'all') => void;
   onTagChange: (value: string) => void;
   onAuthorChange: (value: string) => void;
   onSortChange: (value: SortOption) => void;
@@ -19,24 +16,18 @@ interface SearchBarProps {
 
 function SearchBar({
   searchQuery,
-  selectedLanguage,
   selectedTag,
   selectedAuthor,
   sortOption,
   authors,
   tags,
   onSearchChange,
-  onLanguageChange,
   onTagChange,
   onAuthorChange,
   onSortChange,
 }: SearchBarProps) {
   function handleSearchChange(event: ChangeEvent<HTMLInputElement>) {
     onSearchChange(event.target.value);
-  }
-
-  function handleLanguageChange(event: ChangeEvent<HTMLSelectElement>) {
-    onLanguageChange(event.target.value as PasteLanguage | 'all');
   }
 
   function handleTagChange(event: ChangeEvent<HTMLSelectElement>) {
@@ -70,18 +61,6 @@ function SearchBar({
             placeholder="Search title, tags, or content"
             onChange={handleSearchChange}
           />
-        </label>
-
-        <label className="field">
-          <span>Language</span>
-          <select value={selectedLanguage} onChange={handleLanguageChange}>
-            <option value="all">All languages</option>
-            {languageOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
         </label>
 
         <label className="field">

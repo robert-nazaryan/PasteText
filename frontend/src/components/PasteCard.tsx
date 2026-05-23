@@ -18,7 +18,6 @@ function PasteCard({ paste }: PasteCardProps) {
             </p>
           </div>
           <div className="paste-card-badges">
-            <span className="language-badge">{paste.language}</span>
             {paste.visibility === 'private' ? <span className="status-badge">Private</span> : null}
             {paste.requiresPassword ? <span className="status-badge">Password</span> : null}
           </div>
