@@ -30,8 +30,6 @@ public class KafkaConsumerConfig {
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
-    // ── DLT producer template ──────────────────────────────────────────────
-
     @Bean
     public KafkaTemplate<String, Object> dltKafkaTemplate() {
         Map<String, Object> props = new HashMap<>();
@@ -46,8 +44,6 @@ public class KafkaConsumerConfig {
         backOff.setMaxAttempts(3);
         return new DefaultErrorHandler(new DeadLetterPublishingRecoverer(dltKafkaTemplate()), backOff);
     }
-
-    // ── user.registered consumer ───────────────────────────────────────────
 
     @Bean
     public ConsumerFactory<String, UserRegisteredEvent> userRegisteredConsumerFactory() {
@@ -67,8 +63,6 @@ public class KafkaConsumerConfig {
         return factory;
     }
 
-    // ── paste.expiring consumer ────────────────────────────────────────────
-
     @Bean
     public ConsumerFactory<String, PasteExpiringEvent> pasteExpiringConsumerFactory() {
         JsonDeserializer<PasteExpiringEvent> deserializer =
@@ -87,8 +81,6 @@ public class KafkaConsumerConfig {
         return factory;
     }
 
-    // ── paste.shared consumer (placeholder — raw String) ──────────────────
-
     @Bean(name = "pasteSharedListenerFactory")
     public ConcurrentKafkaListenerContainerFactory<String, String> pasteSharedListenerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
@@ -98,8 +90,6 @@ public class KafkaConsumerConfig {
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         return factory;
     }
-
-    // ── Shared base props ──────────────────────────────────────────────────
 
     private Map<String, Object> baseConsumerProps() {
         Map<String, Object> props = new HashMap<>();
