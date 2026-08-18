@@ -77,7 +77,7 @@ Browser (React SPA)
 | title             | VARCHAR(255)| Optional                 |
 | content           | TEXT        | Required                 |
 | short_link        | VARCHAR(12) | Unique, auto-generated   |
-| password          | TEXT        | BCrypt hash, optional    |
+| password          | VARCHAR(255)| BCrypt hash, optional    |
 | is_public         | BOOLEAN     | Default: true            |
 | category_id       | INT (FK)    | Nullable                 |
 | author_id         | UUID (FK)   | Lazy-loaded              |
@@ -88,24 +88,24 @@ Browser (React SPA)
 | updated_at        | TIMESTAMP   | JPA auditing             |
 
 #### `paste_expirations` (expiration tracking)
-| Column     | Type        | Notes                              |
-|------------|-------------|------------------------------------|
-| id         | UUID (PK)   | Auto-generated                     |
-| paste_id   | UUID        | Reference to pastes.id (unique)    |
-| short_link | VARCHAR(12) | For logging                        |
-| expires_at | TIMESTAMP   | When to delete                     |
-| status     | ENUM        | PENDING, DELETED, CANCELLED        |
-| created_at | TIMESTAMP   | Auto-set on insert                 |
-| deleted_at | TIMESTAMP   | Set when paste is deleted          |
+| Column     | Type        | Notes                                                                 |
+|------------|-------------|-----------------------------------------------------------------------|
+| id         | UUID (PK)   | Auto-generated                                                        |
+| paste_id   | UUID        | Reference to pastes.id (unique)                                       |
+| short_link | VARCHAR(12) | For logging                                                           |
+| expires_at | TIMESTAMP   | When to delete                                                        |
+| status     | VARCHAR(20) | PENDING, DELETED, CANCELLED (enum enforced at application level only) |
+| created_at | TIMESTAMP   | Auto-set on insert                                                    |
+| deleted_at | TIMESTAMP   | Set when paste is deleted                                             |
 
 #### `refresh_tokens`
-| Column     | Type   | Notes                     |
-|------------|--------|---------------------------|
-| id         | UUID   | Auto-generated            |
-| user_id    | UUID   | FK → users                |
-| token      | TEXT   | UUID string, unique       |
-| expires_at | TIMESTAMP | 30 days from creation  |
-| created_at | TIMESTAMP | Auto-set on insert     |
+| Column     | Type         | Notes                  |
+|------------|--------------|------------------------|
+| id         | UUID         | Auto-generated         |
+| user_id    | UUID         | FK → users             |
+| token      | VARCHAR(512) | UUID string, unique    |
+| expires_at | TIMESTAMP    | 30 days from creation  |
+| created_at | TIMESTAMP    | Auto-set on insert     |
 
 ---
 
@@ -146,7 +146,7 @@ Expiration is handled entirely inside `paste-api`:
    When a paste with `expiresAt != null` is created, a `PasteExpiration` record (status = `PENDING`) is created in `paste_expirations`.
 
 2. **`ExpirationSchedulerService`** runs three `@Scheduled` jobs:
-   - `runExpirationScan` every **5 minutes** — queries `paste_expirations` for `PENDING` records past their `expires_at`, deletes the pastes in batches of 500, marks records as `DELETED`.
+   - `runExpirationScan` every **5 minutes (fixedDelay — waits for the previous run to finish before restarting the countdown)** — queries `paste_expirations` for `PENDING` records past their `expires_at`, deletes the pastes in batches of 500, marks records as `DELETED`.
    - `runOrphanCleanup` every **1 hour** — safety net deletes any expired paste not tracked by the expiration table.
    - `logMetrics` every **15 minutes** — logs pending deletion count.
 
@@ -175,7 +175,7 @@ Expiration is handled entirely inside `paste-api`:
 |-------------------------|-----------------|
 | ResourceNotFoundException | 404 Not Found |
 | ConflictException         | 409 Conflict  |
-| InvalidPasswordException  | 401 Unauthorized |
+| InvalidPasswordException  | 403 Forbidden   |
 | InvalidTokenException     | 401 Unauthorized |
 | PasteExpiredException     | 410 Gone      |
 | AccessDeniedException     | 403 Forbidden |
@@ -262,7 +262,7 @@ MAIL_PASSWORD=your_app_password
 
 | Template             | Subject                              | Variables                                          |
 |----------------------|--------------------------------------|----------------------------------------------------|
-| `welcome.html`       | Welcome to PasteBin, {username}!     | `username`, `loginUrl`                             |
+| `welcome.html`       | Welcome to PasteBin, {username}!     | `email`                                            |
 | `paste-expiring.html`| Your paste expires soon              | `username`, `pasteTitle`, `pasteUrl`, `expiresAt`  |
 
 ---
@@ -297,7 +297,7 @@ server:
 
 | Concern  | Technology                |
 |----------|---------------------------|
-| Framework| React 18                  |
+| Framework| React 19                  |
 | Language | TypeScript                |
 | Syntax   | highlight.js              |
 | Build    | Create React App          |
